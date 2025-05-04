@@ -11,6 +11,9 @@ interface Session {
   relevantMemories: { memoryId: string | number }[];
 }
 
+/**
+ * A service for handling LLM interactions
+ */
 @Injectable()
 export class LlmService {
   private openai: OpenAI;

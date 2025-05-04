@@ -3,6 +3,14 @@ import { EmbeddingProvider } from "./embedding.provider";
 import { ConfigService } from "@nestjs/config";
 import { Injectable } from "@nestjs/common";
 
+/**
+ * Embeddings via OpenAI API
+ * ## Pros: 
+ * - Easy to use
+ * ## Cons: 
+ * - Costly
+ * - Slower than local embeddings
+ */
 @Injectable()
 export class OpenAIEmbeddingService implements EmbeddingProvider {
     private openai: OpenAI;

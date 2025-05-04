@@ -2,6 +2,14 @@ import { ConfigService } from "@nestjs/config";
 import { EmbeddingProvider } from "./embedding.provider";
 import { Injectable } from "@nestjs/common";
 
+/**
+ * Embeddings via local embedding server
+ * ## Pros: 
+ * - Fast
+ * - No cost
+ * ## Cons: 
+ * - Requires running the server
+ */
 @Injectable()
 export class LocalEmbeddingService implements EmbeddingProvider {
 
