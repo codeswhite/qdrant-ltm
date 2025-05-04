@@ -1,0 +1,57 @@
+services:
+  embedder:
+    build: ./embedder
+    ports:
+      - "3002:3002"
+    env_file:
+      - .env
+    environment:
+      # EMBEDDING_MODEL_NAME: intfloat/multilingual-e5-large-instruct
+      EMBEDDING_MODEL_NAME: jinaai/jina-embeddings-v3
+    volumes:
+      - ./data/hf_cache:/root/.cache/huggingface
+    networks:
+      - qdrant-ltm
+
+  qdrant:
+    image: qdrant/qdrant
+
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    networks:
+      - qdrant-ltm
+
+  backend:
+    build: ./backend
+
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - EMBEDDER_URL=http://embedder:3002
+      - QDRANT_HOST=qdrant
+    depends_on:
+      - embedder
+      - qdrant
+    networks:
+      - qdrant-ltm
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_BACKEND_API_URL=http://backend:3001
+    depends_on:
+      - backend
+    networks:
+      - qdrant-ltm
+
+networks:
+  qdrant-ltm:
+    driver: bridge

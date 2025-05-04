@@ -1,0 +1,3 @@
+- [ ] Improve memory TTL (better prompt engineering)
+- [ ] Make memories delete on TTL expiration
+- [ ] Implement human-like memory retention, maybe do a memory "strength" have it gradually decrease over time and increase when a memory is retrieved or a similar memory created
