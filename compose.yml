@@ -1,6 +1,12 @@
 services:
   embedder:
     build: ./embedder
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/3002"]
+      interval: 5s
+      timeout: 15s
+      retries: 5
+      start_period: 15s
     ports:
       - "3002:3002"
     env_file:
@@ -35,8 +41,10 @@ services:
       - EMBEDDER_URL=http://embedder:3002
       - QDRANT_HOST=qdrant
     depends_on:
-      - embedder
-      - qdrant
+      embedder:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
     networks:
       - qdrant-ltm
 
