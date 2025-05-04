@@ -1,15 +1,10 @@
-import { Body, Controller, Post, Param, Get } from '@nestjs/common';
+import { Body, Controller, Post, Param } from '@nestjs/common';
 import { LlmService } from './llm.service';
 import { MemoryService } from './memory/memory.service';
 
 @Controller('llm')
 export class LlmController {
   constructor(private readonly llmService: LlmService, private readonly memoryService: MemoryService) { }
-
-  @Get('health')
-  health() {
-    return { status: 'ok' };
-  }
 
   @Post('session')
   createSession(@Body() body: { systemPrompt?: string }) {
