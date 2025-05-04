@@ -40,10 +40,7 @@ You can run the application with all dependencies using Docker Compose or manual
 **Prerequisites:**
 - Docker
 
-### With Docker Compose
-
-**Prerequisites:**
-- Docker Compose (recommended)
+### With Docker Compose (Recommended)
 
 You may use the supplied `compose.yml` file to run the application with all dependencies.
 
@@ -61,7 +58,7 @@ See logs with:
 docker compose logs -f
 ```
 
-### Without Docker Compose
+### Without Docker Compose (or local development)
 
 **Prerequisites:**
 - pnpm (recommended)
