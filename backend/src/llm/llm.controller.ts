@@ -1,6 +1,11 @@
 import { Body, Controller, Post, Param, BadRequestException } from '@nestjs/common';
 import { LlmService } from './llm.service';
-import { MemoryService } from './memory/memory.service';
+import { MemorySearchResult, MemoryService } from './memory/memory.service';
+
+interface ChatCompletionResponse {
+  assistantMessage: string;
+  newFetchedMemories: MemorySearchResult[]
+}
 
 @Controller('llm')
 export class LlmController {
@@ -17,7 +22,7 @@ export class LlmController {
   async createCompletion(
     @Param('id') sessionId: string,
     @Body() body: { message: string }
-  ) {
+  ): Promise<ChatCompletionResponse> {
     console.log(`Creating completion for session ${sessionId}, user message: ${body.message}`);
     try {
       return await this.llmService.chatCompletion(

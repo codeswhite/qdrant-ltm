@@ -1,28 +1,9 @@
 "use client";
-import { MessageSquare, Plus, Clock, Tag, Info, Send } from "lucide-react";
+import { MessageSquare, Plus, Send } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "react-toastify";
-
-// Memory and Message types
-export type Memory = {
-  id: string;
-  version: number;
-  score: number;
-  payload: {
-    userId: string;
-    sessionId: string;
-    memory_text: string;
-    timestamp: string;
-    reason: string;
-    ttl_days: number;
-  };
-};
-
-type Message = {
-  id: string;
-  text: string;
-  sender: "user" | "assistant";
-};
+import { Memory, Message } from "./types";
+import { MemoryItem } from "./components/MemoryItem";
 
 export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -32,7 +13,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState("created");
+  const [activeTab, setActiveTab] = useState("loaded");
 
   const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://localhost:3001";
 
@@ -132,11 +113,10 @@ export default function ChatPage() {
           {messages.map((message) => (
             <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  message.sender === "user"
+                className={`max-w-[80%] rounded-lg p-3 ${message.sender === "user"
                     ? "bg-blue-500 text-white"
                     : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                }`}
+                  }`}
               >
                 {message.text}
               </div>
@@ -185,21 +165,19 @@ export default function ChatPage() {
               <div className="grid grid-cols-2">
                 <button
                   onClick={() => setActiveTab("created")}
-                  className={`py-2 text-center font-medium text-sm transition-colors ${
-                    activeTab === "created"
+                  className={`py-2 text-center font-medium text-sm transition-colors ${activeTab === "created"
                       ? "border-b-2 border-blue-500 text-blue-500"
                       : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                  }`}
+                    }`}
                 >
                   Created Memories
                 </button>
                 <button
                   onClick={() => setActiveTab("loaded")}
-                  className={`py-2 text-center font-medium text-sm transition-colors ${
-                    activeTab === "loaded"
+                  className={`py-2 text-center font-medium text-sm transition-colors ${activeTab === "loaded"
                       ? "border-b-2 border-blue-500 text-blue-500"
                       : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                  }`}
+                    }`}
                 >
                   Loaded Memories
                 </button>
@@ -247,36 +225,6 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-interface MemoryItemProps {
-  memory: Memory
-}
-
-function MemoryItem({ memory }: MemoryItemProps) {
-  return (
-    <div className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800">
-      <div className="flex justify-between items-start mb-1">
-        <div className="font-medium text-sm">ID: {memory.id}</div>
-      </div>
-      <div className="text-sm mb-2 line-clamp-2">{memory.payload.memory_text}</div>
-      <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-        <div className="flex items-center">
-          <Info className="h-3 w-3 mr-1" />
-          {memory.payload.reason}
-        </div>
-        <div className="flex items-center">
-          <Clock className="h-3 w-3 mr-1" />
-          TTL: {memory.payload.ttl_days} days
-        </div>
-        {/* <div className="flex items-center">
-          <Tag className="h-3 w-3 mr-1" />
-          {memory.category}
-        </div> */}
-      </div>
-      <div className="text-xs text-gray-400 mt-1">{memory.payload.timestamp.toLocaleString()}</div>
     </div>
   )
 }

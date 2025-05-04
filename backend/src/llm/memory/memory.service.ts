@@ -39,15 +39,30 @@ Examples:
 For the ttl_days, please specify a logical number of days that the information should stay relevant,
 after that it will become considered unchecked until refreshed.`
 
+const MEMORY_PAYLOAD_SCHEMA_ZOD = z.object({
+  memory_text: z.string().describe('The text to be embedded, stored and retrieved.'),
+  reason: z.string().describe('The logical reason why this memo has been included. In short please.'),
+  ttl_days: z.number().describe('In days, For how long this info should be considered relevant?')
+}).describe('Set of memories extracted from the user input');
+
+const MEMORY_PAYLOAD_FROM_DB_SCHEMA_ZOD = MEMORY_PAYLOAD_SCHEMA_ZOD.extend({
+  userId: z.string().describe('The ID of the user who created this memory.'),
+  sessionId: z.string().describe('The ID of the session in which this memory was created.'),
+  timestamp: z.string().describe('The timestamp when this memory was created.'),
+});
+
+export type MemoryPayloadFromDB = z.infer<typeof MEMORY_PAYLOAD_FROM_DB_SCHEMA_ZOD>;
+
 const MEMORY_EXTRACTOR_SCHEMA_ZOD = z.object({
-  memories: z.array(z.object({
-    text: z.string().describe('The text to be embedded, stored and retrieved.'),
-    reason: z.string().describe('The logical reason why this memo has been included. In short please.'),
-    ttl_days: z.number().describe('In days, For how long this info should be considered relevant?')
-  })).describe('Set of memories extracted from the user input'),
+  memories: z.array(MEMORY_PAYLOAD_SCHEMA_ZOD),
   avoidance_reason: z.string().describe('In case no memories were extracted, what is the reason for that? (if memories extracted, leave empty)')
 }).strict();
 // console.log(zodToJsonSchema(MEMORY_EXTRACTOR_SCHEMA_ZOD)) // DEBUG
+
+export interface MemorySearchResult extends MemoryPayloadFromDB {
+  id: string | number;
+  score: number;
+}
 
 @Injectable()
 export class MemoryService implements OnModuleInit {
@@ -96,7 +111,7 @@ export class MemoryService implements OnModuleInit {
       const embedding = await this.embeddingService.makeEmbedding(userPrompt);
       const relatedMemories = await this.getMemoriesFromDB({ userId, queryEmbedding: embedding, excludeSessionId: sessionId });
       console.log(`======= Related memories (${relatedMemories.length}): =======\n`);
-      console.log(relatedMemories.map((item) => `-> ${item.score.toFixed(2)}% >> "${item.memory?.memory_text}"`).join('\n'));
+      console.log(relatedMemories.map((item) => `-> ${item.score.toFixed(2)}% >> "${item.memory_text}"`).join('\n'));
       console.log(`======= End of related memories =======\n`);
       return relatedMemories;
     } catch (error) {
@@ -137,7 +152,7 @@ export class MemoryService implements OnModuleInit {
     limit?: number;
     scoreThreshold?: number;
     excludeSessionId?: string;
-  }) {
+  }): Promise<MemorySearchResult[]> {
     const {
       userId,
       queryEmbedding,
@@ -150,7 +165,7 @@ export class MemoryService implements OnModuleInit {
 
     const result = await this.client.search(this.collectionName, {
       vector: queryEmbedding,
-      limit: limit * 3,
+      limit: limit * 3, // #Hack: Buffer for later filtering
       filter: {
         must: [
           {
@@ -171,13 +186,24 @@ export class MemoryService implements OnModuleInit {
     console.log(`Found ${result.length} memories in: ${performance.now() - time}ms`);
     // console.log(`Memory search result: ${JSON.stringify(result, null, 2)}`);
 
-    const filtered = result.filter((item) => item.score >= scoreThreshold);
-
-    return filtered.map((item) => ({
-      memoryId: item.id,
-      memory: item.payload,
-      score: item.score,
-    }));
+    // Validate filter and format
+    const memories = [];
+    for (const item of result) {
+      const parsed = MEMORY_PAYLOAD_FROM_DB_SCHEMA_ZOD.safeParse(item.payload);
+      if (!parsed.success) {
+        console.error('!! Invalid memory payload:', parsed.error);
+        continue;
+      }
+      if (item.score < scoreThreshold) {
+        continue;
+      }
+      memories.push({
+        ...parsed.data,
+        id: item.id,
+        score: item.score,
+      });
+    }
+    return memories;
   }
 
   // Function that takes user input and extracts memories from it.
@@ -232,19 +258,19 @@ export class MemoryService implements OnModuleInit {
       }
       console.log(`======= Extracted ${memos.memories.length} memories from input =======`);
       for (const memo of memos.memories) {
-        console.log(`-> Text: "${memo.text}" | Reason: ${memo.reason} | TTL: ${memo.ttl_days}`);
-        const embedding = await this.embeddingService.makeEmbedding(memo.text);
+        console.log(`-> Text: "${memo.memory_text}" | Reason: ${memo.reason} | TTL: ${memo.ttl_days}`);
+        const embedding = await this.embeddingService.makeEmbedding(memo.memory_text);
         // Check for duplicates
         const existing = await this.getMemoriesFromDB({ userId: userId, queryEmbedding: embedding, limit: 1, scoreThreshold: 0.99 });
         if (existing.length > 0) {
-          console.log(`Exact or very similar memory already exists: ${existing[0].memory?.memory_text}`);
+          console.log(`Exact or very similar memory already exists: ${existing[0].memory_text}`);
           continue;
         }
 
         await this.storeMemoryEmbedding(
           userId,
           sessionId,
-          memo.text,
+          memo.memory_text,
           embedding,
           { ...metadata, reason: memo.reason, ttl_days: memo.ttl_days }
         )

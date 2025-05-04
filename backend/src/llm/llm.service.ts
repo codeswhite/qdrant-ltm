@@ -8,7 +8,7 @@ interface Session {
   userId: string;
   messages: ChatMessage[];
   lastActivity: number;
-  relevantMemories: { memoryId: string | number }[];
+  relevantMemories: { id: string | number }[];
 }
 
 /**
@@ -56,14 +56,14 @@ export class LlmService {
     const memories = await this.memoryService.getRelatedMemories({ userPrompt: userMessage, userId: session.userId, sessionId });
 
     // Deduplicate memories
-    const newMemories = memories.filter((memory) => !session.relevantMemories.some(m => m.memoryId === memory.memoryId));
+    const newMemories = memories.filter((memory) => !session.relevantMemories.some(m => m.id === memory.id));
     if (newMemories) {
-      session.relevantMemories = [...session.relevantMemories, ...newMemories.map(m => ({ memoryId: m.memoryId }))];
+      session.relevantMemories = [...session.relevantMemories, ...newMemories.map(m => ({ id: m.id }))];
     }
     console.log(`Fetched ${memories.length} relevant user memories, ${newMemories.length} new memories in session:`, newMemories);
 
     // Add memories to context
-    session.messages.push({ role: 'system', content: 'Relevant memories about the user:\n' + newMemories.map(m => '- ' + m.memory?.memory_text).join('\n') });
+    session.messages.push({ role: 'system', content: 'Relevant memories about the user:\n' + newMemories.map(m => '- ' + m.memory_text).join('\n') });
 
     // Async: Process and store memories
     this.memoryService.processAndSaveMemory({ userId: session.userId, sessionId, userInput: userMessage, metadata: { timestamp: new Date().toISOString() } });
