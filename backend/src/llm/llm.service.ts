@@ -60,10 +60,10 @@ export class LlmService {
     if (newMemories) {
       session.relevantMemories = [...session.relevantMemories, ...newMemories.map(m => ({ memoryId: m.memoryId }))];
     }
-    console.log(`Fetched ${memories.length} relevant user memories, ${newMemories.length} new memories:`, newMemories);
+    console.log(`Fetched ${memories.length} relevant user memories, ${newMemories.length} new memories in session:`, newMemories);
 
     // Add memories to context
-    session.messages.push({ role: 'system', content: 'Relevant memories about the user:\n' + newMemories.map(m => '- ' + m.memoryText).join('\n') });
+    session.messages.push({ role: 'system', content: 'Relevant memories about the user:\n' + newMemories.map(m => '- ' + m.memory?.memory_text).join('\n') });
 
     // Async: Process and store memories
     this.memoryService.processAndSaveMemory({ userId: session.userId, sessionId, userInput: userMessage, metadata: { timestamp: new Date().toISOString() } });

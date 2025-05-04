@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { LocalEmbeddingService } from '../embedding/local-embedding.service';
 
-const MEMORY_PARSER_SYS_PROMPT = `Your task is to analyze the user's input and extract his ideas, desires, facts about him, and anything that could be potentially useful in future interactions.
+const MEMORY_EXTRACTOR_SYS_PROMPT = `Your task is to analyze the user's input and extract his ideas, desires, facts about him, and anything that could be potentially useful in future interactions.
 Focus on user-oriented info.
 
 Exclude:
@@ -39,7 +39,7 @@ Examples:
 For the ttl_days, please specify a logical number of days that the information should stay relevant,
 after that it will become considered unchecked until refreshed.`
 
-const MEMORY_PARSER_SCHEMA_ZOD = z.object({
+const MEMORY_EXTRACTOR_SCHEMA_ZOD = z.object({
   memories: z.array(z.object({
     text: z.string().describe('The text to be embedded, stored and retrieved.'),
     reason: z.string().describe('The logical reason why this memo has been included. In short please.'),
@@ -47,7 +47,7 @@ const MEMORY_PARSER_SCHEMA_ZOD = z.object({
   })).describe('Set of memories extracted from the user input'),
   avoidance_reason: z.string().describe('In case no memories were extracted, what is the reason for that? (if memories extracted, leave empty)')
 }).strict();
-// console.log(zodToJsonSchema(MEMORY_PARSER_SCHEMA_ZOD)) // DEBUG
+// console.log(zodToJsonSchema(MEMORY_EXTRACTOR_SCHEMA_ZOD)) // DEBUG
 
 @Injectable()
 export class MemoryService implements OnModuleInit {
@@ -94,7 +94,11 @@ export class MemoryService implements OnModuleInit {
     const { userPrompt, userId, sessionId } = params;
     try {
       const embedding = await this.embeddingService.makeEmbedding(userPrompt);
-      return this.getMemoriesFromDB({ userId, queryEmbedding: embedding, excludeSessionId: sessionId });
+      const relatedMemories = await this.getMemoriesFromDB({ userId, queryEmbedding: embedding, excludeSessionId: sessionId });
+      console.log(`======= Related memories (${relatedMemories.length}): =======\n`);
+      console.log(relatedMemories.map((item) => `-> ${item.score.toFixed(2)}% >> "${item.memory?.memory_text}"`).join('\n'));
+      console.log(`======= End of related memories =======\n`);
+      return relatedMemories;
     } catch (error) {
       console.error('Error getting related memories:', error);
       throw error;
@@ -164,27 +168,25 @@ export class MemoryService implements OnModuleInit {
         ]
       },
     });
-    console.log(`Memory search time: ${performance.now() - time}ms`);
-    console.log(`Memory search result: ${JSON.stringify(result, null, 2)}`);
+    console.log(`Found ${result.length} memories in: ${performance.now() - time}ms`);
+    // console.log(`Memory search result: ${JSON.stringify(result, null, 2)}`);
 
     const filtered = result.filter((item) => item.score >= scoreThreshold);
-    console.log(`Relevant memories: ${filtered.length}`);
 
     return filtered.map((item) => ({
       memoryId: item.id,
-      memoryText: item.payload?.memory_text as string,
+      memory: item.payload,
       score: item.score,
     }));
   }
 
-  // Function that takes user input and synthesizes it into memories.
-  async parseMemories(userInput: string) {
-    console.log("Making memory.. calling gpt for parsing.")
+  // Function that takes user input and extracts memories from it.
+  async extractMemories(userInput: string) {
     const time = performance.now();
     const completion = await this.openai.chat.completions.create({
       messages: [
         {
-          role: 'system', content: MEMORY_PARSER_SYS_PROMPT
+          role: 'system', content: MEMORY_EXTRACTOR_SYS_PROMPT
         },
         { role: 'user', content: userInput }
       ],
@@ -193,28 +195,28 @@ export class MemoryService implements OnModuleInit {
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "memory_parser",
+          name: "memory_extractor",
           strict: true,
-          schema: zodToJsonSchema(MEMORY_PARSER_SCHEMA_ZOD) // Next versions of OpenAI will add built-in Zod support
+          schema: zodToJsonSchema(MEMORY_EXTRACTOR_SCHEMA_ZOD) // Next versions of OpenAI will add built-in Zod support
         },
       },
       model: 'gpt-4.1-nano',
     });
-    console.debug(`Memory parsing time: ${performance.now() - time}ms`);
+    console.debug(`Memory extraction time: ${performance.now() - time}ms`);
     if (!completion.choices[0]) {
-      console.error('Memory parsing Completion:', completion);
-      throw new Error('Failed to generate memory parsing');
+      console.error('Memory extraction Completion:', completion);
+      throw new Error('Failed to generate memory extraction');
     }
     if (!completion.choices[0].message.content) {
-      console.error('Memory parsing Completion:', completion);
+      console.error('Memory extraction Completion:', completion);
       throw new Error('Memory didnt generate content');
     }
-    console.info('Memory Parser output:', completion.choices[0].message.content);
+    console.debug('DEBUG: Memory extraction output:', completion.choices[0].message.content);
     try {
-      const parsedMems = MEMORY_PARSER_SCHEMA_ZOD.parse(JSON.parse(completion.choices[0].message.content));
+      const parsedMems = MEMORY_EXTRACTOR_SCHEMA_ZOD.parse(JSON.parse(completion.choices[0].message.content));
       return parsedMems;
     } catch (error) {
-      console.error('Memory parsing error:', error);
+      console.error('Memory extraction error:', error);
       throw error;
     }
   }
@@ -223,17 +225,19 @@ export class MemoryService implements OnModuleInit {
     const { userId, sessionId, userInput, metadata } = params;
     try {
 
-      const memos = await this.parseMemories(userInput);
+      const memos = await this.extractMemories(userInput);
       if (!memos.memories || memos.memories.length === 0) {
         console.log(`No memories extracted from input, reason: '${memos.avoidance_reason}'`);
         return;
       }
+      console.log(`======= Extracted ${memos.memories.length} memories from input =======`);
       for (const memo of memos.memories) {
+        console.log(`-> Text: "${memo.text}" | Reason: ${memo.reason} | TTL: ${memo.ttl_days}`);
         const embedding = await this.embeddingService.makeEmbedding(memo.text);
         // Check for duplicates
         const existing = await this.getMemoriesFromDB({ userId: userId, queryEmbedding: embedding, limit: 1, scoreThreshold: 0.99 });
         if (existing.length > 0) {
-          console.log(`Memory already exists: ${existing[0].memoryText}`);
+          console.log(`Exact or very similar memory already exists: ${existing[0].memory?.memory_text}`);
           continue;
         }
 
@@ -245,6 +249,7 @@ export class MemoryService implements OnModuleInit {
           { ...metadata, reason: memo.reason, ttl_days: memo.ttl_days }
         )
       }
+      console.log(`======= End of extracted memories =======`);
     } catch (error) {
       console.error('Error processing and saving memory:', error);
       throw error;
