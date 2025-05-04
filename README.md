@@ -108,3 +108,14 @@ The application uses Qdrant vector database to store and retrieve memories. Memo
 - Semantic similarity with current conversation
 - Timestamp relevance
 - Contextual importance
+
+## TODOs:
+
+- [ ] Improve memory TTL (better prompt engineering)
+- [ ] Make memories delete on TTL expiration
+    -> Can become redundant if i introduce a "memory strength" metric
+- [ ] Implement human-like memory retention, maybe do a memory "strength" have it gradually decrease over time and increase when a memory is retrieved or a similar memory created
+- [ ] Allow assistant to query memory database (via MCP?)
+    -> Exmaple use case:
+        - "User: 'What else do you know about me?'",
+        - *Assistant calls a 'tool' to query memory database*
