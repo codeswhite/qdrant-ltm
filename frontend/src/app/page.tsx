@@ -18,6 +18,18 @@ export default function ChatPage() {
 
   const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:3001';
 
+  const showError = (message: string) => {
+    toast.error(message, {
+      position: "top-right",
+      autoClose: 5000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+    });
+  }
+
   const newSession = async () => {
     try {
       const response = await fetch(`${BACKEND_API_URL}/llm/session`, {
@@ -33,6 +45,7 @@ export default function ChatPage() {
       setMessages([]);
     } catch (err) {
       console.error('Session error:', err);
+      showError('Failed to create new session: ' + err);
     }
   };
 
@@ -67,7 +80,7 @@ export default function ChatPage() {
         body: JSON.stringify({ message: input }),
       });
 
-      if (!response.ok) throw new Error('Failed to get completion');
+      if (!response.ok) throw new Error((await response.json())?.message || 'Failed to get completion');
       
       const { assistantMessage, newFetchedMemories } = await response.json() as { assistantMessage: string; newFetchedMemories: { memory_text: string }[] };
       
@@ -85,6 +98,7 @@ export default function ChatPage() {
       }
     } catch (err) {
       console.error('Completion error:', err);
+      showError('Failed to get completion: ' + (err as Error).message);
     } finally {
       setLoading(false);
     }

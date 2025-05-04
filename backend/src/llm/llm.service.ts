@@ -45,7 +45,7 @@ export class LlmService {
   ) {
     const session = this.sessions.get(sessionId);
     if (!session) {
-      throw new Error(`Session ${sessionId} not found`);
+      throw new Error(`Session ${sessionId} not found, please create a new session`);
     }
 
     // TODO Validate user's message!

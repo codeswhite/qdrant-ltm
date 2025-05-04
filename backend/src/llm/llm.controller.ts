@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Param } from '@nestjs/common';
+import { Body, Controller, Post, Param, BadRequestException } from '@nestjs/common';
 import { LlmService } from './llm.service';
 import { MemoryService } from './memory/memory.service';
 
@@ -19,11 +19,15 @@ export class LlmController {
     @Body() body: { message: string }
   ) {
     console.log(`Creating completion for session ${sessionId}, user message: ${body.message}`);
-    const response = await this.llmService.chatCompletion(
-      sessionId,
-      body.message
-    );
-    return response;
+    try {
+      return await this.llmService.chatCompletion(
+        sessionId,
+        body.message
+      );
+    } catch (error) {
+      console.error('Error creating completion:', error);
+      throw new BadRequestException(error.message);
+    }
   }
 
   @Post('find-related-memories')
